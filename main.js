@@ -106,6 +106,7 @@ function Cell(board, x, y) {
 
 function Board() {
 	this.cells = [];
+	this.solvable = true;
 
 	for (var y = 0; y < 9; ++y) for (var x = 0; x < 9; ++x)  {
 		this.cells.push(new Cell(this, x, y));
@@ -116,6 +117,7 @@ function Board() {
 	}
 
 	this.recalculate = function() {
+		solvable = true;
 		for (let i in this.cells) {
 			this.cells[i].resetPossibleNumbers();
 		}
@@ -131,7 +133,20 @@ function Board() {
 			this.cells[i].recalculate();
 		}
 
+
+
 		this.render();
+
+		info.innerText = "";
+		for (let i in this.cells) {
+			let cell = this.cells[i];
+			if (cell.number == null && cell.possibleNumbers.length == 0) {
+				//this.recalculate();
+				info.innerText = "Sudukut går ej att lösa på det här sättet";
+				this.solvable = false;
+				return;
+			}
+		}
 	}
 
 	this.removeNumberFromX = function(x, number) {
@@ -174,6 +189,7 @@ function Board() {
 
 	this.render = function() {
 		clearScreen();
+
 		for (let i = 0; i < 10; ++i) {
 			if (i % 3 == 0) {
 				ctx.lineWidth = 3;
@@ -202,7 +218,6 @@ function Board() {
 		var cell = this.getCell(x, y);
 		cell.setNumber(number);
 		this.recalculate();
-		this.render();
 	}
 
 	this.save = function(stateNum) {
@@ -226,35 +241,36 @@ function Board() {
 			this.cells[i].setNumber(data[i]);
 		}
 		this.recalculate();
+		this.render();
 	}
 
 	this.autoFill = function() {
-		var breakLoop = false;
-
-		while (!breakLoop) {
-			breakLoop = true;
-
-			for (let i in this.cells) {
-				let cell = this.cells[i];
+		let self = this;
+		function autoFillLoop() {
+			console.log("filling...");
+			for (let i in self.cells) {
+				let cell = self.cells[i];
 				if (cell.uniqueNumbers.length == 1) {
 					cell.setNumber(cell.uniqueNumbers[0]);
-					breakLoop = false;
-					this.recalculate();
+
+					info.innerText = "löser";
+					setTimeout(autoFillLoop, 200);
+					self.recalculate();
 					break;
 				}
 				if (cell.possibleNumbers.length == 1) {
 					cell.setNumber(cell.possibleNumbers[0]);
-					breakLoop = false;
-					this.recalculate();
+					
+					info.innerText = "löser";
+					setTimeout(autoFillLoop, 200);
+					self.recalculate();
 					break;
-				}
-				else if (cell.number == null && cell.possibleNumbers.length == 0) {
-					info.innerText = "Sudukut går ej att lösa på det här sättet";
-					this.recalculate();
-					return;
 				}
 			}
 		}
+
+		info.innerText = "löser";
+		setTimeout(autoFillLoop, 200);
 	}
 }
 
@@ -297,7 +313,6 @@ function getCursorPosition(canvas, event) {
 
 canvas.addEventListener("click", function(event) {
 	var coords = getCursorPosition(canvas, event);
-	console.log(coords);
 
 	var x = Math.floor(coords.x / cellSize);
 	var y = Math.floor(coords.y / cellSize);
