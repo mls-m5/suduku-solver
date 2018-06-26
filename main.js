@@ -74,6 +74,10 @@ function Cell(board, x, y) {
 		}
 	}
 
+	this.isSimple = function() {
+		return this.uniqueNumbers.length === 1 || this.possibleNumbers.length === 1;
+	}
+
 	this.render = function() {
 		let dx = this.x * cellSize;
 		let dy = this.y * cellSize;
@@ -101,12 +105,160 @@ function Cell(board, x, y) {
 		if (this.number !== null) {
 			drawText(dx + cellSize / 4, dy, "" + this.number, 50);
 		}
+		else if (this.possibleNumbers.length === 0) {
+			ctx.fillStyle = "red";
+			ctx.fillRect(this.x * cellSize, this.y * cellSize, cellSize, cellSize);
+			ctx.fillStyle = "black";
+		}
 	};
 }
 
 function Board() {
+	let board = this;
+	// function State() {
+	// 	this.actions = board.actions();
+	// 	this.state = board.serialize();
+	// }
+
+	function Action(x, y, number, state) {
+		this.x = x;
+		this.y = y;
+		this.number = number;
+		this.result = null;
+		this.state = state;
+		this.parent = null;
+		this.children = [];
+
+		this.do = function() {
+			board.deserialize(this.state);
+			board.setCellNumber(this.x, this.y, this.number);
+		}
+	}
+
+	function Solver() {
+		this.reset = function() {
+			this.actions = [];
+			this.doneActions = [];
+			this.lastAction = null;
+		}
+
+		this.reset();
+	}
+
+	let solver = new Solver();
+
+
+	function autoFillLoop() {
+		function repeat() {
+			setTimeout(autoFillLoop, 10);
+		}
+
+		if (board.solved === true) {
+			info.innerText = "sudukut är löst";
+			solver.lastAction.result = true;
+			solver.reset();
+			return;
+		}
+		else if (board.solvable === false) {
+			console.log("found dead end");
+			solver.lastAction.result = false;
+			solver.lastAction = solver.actions.splice(0, 1)[0];
+			solver.lastAction.do();
+			solver.doneActions.push(solver.lastAction);
+			repeat();
+		}
+		else if (board.simpleAction) {
+			console.log("filling...");
+			for (let i in board.cells) {
+				let cell = board.cells[i];
+				if (cell.uniqueNumbers.length == 1) {
+					cell.setNumber(cell.uniqueNumbers[0]);
+
+					info.innerText = "löser";
+					board.recalculate();
+
+					repeat();
+					break;
+				}
+				if (cell.possibleNumbers.length == 1) {
+					cell.setNumber(cell.possibleNumbers[0]);
+					
+					info.innerText = "löser";
+
+					board.recalculate();
+					repeat();
+					break;
+				}
+			}
+		}
+		else {
+			console.log("guessing...");
+			if (solver.actions.length === 0) {
+				solver.actions = board.getSortedActions();
+
+				if (solver.actions.length === 0) {
+					info.innerText === "Kunde inte hitta lösning på sudukut";
+					return;
+				}
+				solver.lastAction = null;
+			}
+			else {
+				let newActions = board.getSortedActions();
+				for (let i in newActions) {
+					newActions[i].parent = solver.lastAction;
+				}
+				solver.actions = newActions.concat(solver.actions);
+				//solver.actions = solver.actions.concat(newActions);
+			}
+			let reallyLastAction = solver.lastAction;
+			solver.lastAction = solver.actions.splice(0, 1)[0];
+			solver.lastAction.do();
+			solver.doneActions.push(solver.lastAction);
+			console.log(solver.lastAction);
+			repeat();
+		}
+	}
+
+	this.autoFill = function() {
+		info.innerText = "löser";
+
+		setTimeout(autoFillLoop, 200);
+	}
+
+	function getSortedActions() {
+		let cells = this.cells.slice() //creates a copy of the array
+		cells.sort(function(a, b) {return a.possibleNumbers.length - b.possibleNumbers.length});
+
+		cells = cells.filter(function(cell) {return cell.possibleNumbers.length > 0});
+
+		let state = this.serialize();
+
+		let maxActions = 100;
+		let actionCount = 0;
+		let actions = [];
+		for (let i in cells) {
+			let cell = cells[i];
+			for (let a in cell.possibleNumbers) {
+				actions.push(new Action(cell.x, cell.y, cell.possibleNumbers[a], state));
+				if (++actionCount > maxActions) {
+					return actions;
+				}
+			}
+		}
+
+		return actions;
+
+		//Todo: Use this function to test solutions
+	}
+
+	this.getSortedActions = getSortedActions;
+	this.solver = solver;
+
+
 	this.cells = [];
 	this.solvable = true;
+	this.simpleAction = false; //Is there a cell with only one possible number
+	this.solved = false;
 
 	for (var y = 0; y < 9; ++y) for (var x = 0; x < 9; ++x)  {
 		this.cells.push(new Cell(this, x, y));
@@ -117,7 +269,9 @@ function Board() {
 	}
 
 	this.recalculate = function() {
-		solvable = true;
+		this.solvable = true;
+		this.simpleAction = false;
+		this.solved = false;
 		for (let i in this.cells) {
 			this.cells[i].resetPossibleNumbers();
 		}
@@ -133,19 +287,29 @@ function Board() {
 			this.cells[i].recalculate();
 		}
 
-
-
 		this.render();
 
 		info.innerText = "";
+		let solvedCells = 0;
 		for (let i in this.cells) {
 			let cell = this.cells[i];
-			if (cell.number == null && cell.possibleNumbers.length == 0) {
+			if (cell.number != null) {
+				++ solvedCells;
+			}
+			else if (cell.possibleNumbers.length == 0) {
 				//this.recalculate();
 				info.innerText = "Sudukut går ej att lösa på det här sättet";
 				this.solvable = false;
+				this.simpleAction = false;
 				return;
 			}
+			else if (cell.isSimple()) {
+				this.simpleAction = true;
+			}
+		}
+
+		if (solvedCells == 81) {
+			this.solved = true;
 		}
 	}
 
@@ -190,6 +354,10 @@ function Board() {
 	this.render = function() {
 		clearScreen();
 
+		for (let i in this.cells) {
+			this.cells[i].render();
+		}
+
 		for (let i = 0; i < 10; ++i) {
 			if (i % 3 == 0) {
 				ctx.lineWidth = 3;
@@ -200,10 +368,6 @@ function Board() {
 			drawLine(cellSize * i, 0, cellSize * i, boardSize);
 			drawLine(0, cellSize * i, boardSize, cellSize * i);
 
-		}
-
-		for (let i in this.cells) {
-			this.cells[i].render();
 		}
 	}
 
@@ -220,23 +384,24 @@ function Board() {
 		this.recalculate();
 	}
 
-	this.save = function(stateNum) {
-		if (typeof stateNum === "undefined") {
-			stateNum = 0;
-		}
+	this.serialize = function() {
 		var output = [];
 		for (let i in this.cells) {
 			output.push(this.cells[i].number);
 		}
-
-		localStorage.setItem("state" + stateNum, JSON.stringify(output));
+		return JSON.stringify(output);
 	}
 
-	this.load = function(stateNum) {
+	this.save = function(stateNum) {
 		if (typeof stateNum === "undefined") {
 			stateNum = 0;
 		}
-		var data = JSON.parse(localStorage.getItem("state" + stateNum));
+
+		localStorage.setItem("state" + stateNum, this.serialize());
+	}
+
+	this.deserialize = function(string) {
+		var data = JSON.parse(string);
 		for (let i in this.cells) {
 			this.cells[i].setNumber(data[i]);
 		}
@@ -244,33 +409,15 @@ function Board() {
 		this.render();
 	}
 
-	this.autoFill = function() {
-		let self = this;
-		function autoFillLoop() {
-			console.log("filling...");
-			for (let i in self.cells) {
-				let cell = self.cells[i];
-				if (cell.uniqueNumbers.length == 1) {
-					cell.setNumber(cell.uniqueNumbers[0]);
-
-					info.innerText = "löser";
-					setTimeout(autoFillLoop, 200);
-					self.recalculate();
-					break;
-				}
-				if (cell.possibleNumbers.length == 1) {
-					cell.setNumber(cell.possibleNumbers[0]);
-					
-					info.innerText = "löser";
-					setTimeout(autoFillLoop, 200);
-					self.recalculate();
-					break;
-				}
-			}
+	this.load = function(stateNum) {
+		if (typeof stateNum === "undefined") {
+			stateNum = 0;
 		}
-
-		info.innerText = "löser";
-		setTimeout(autoFillLoop, 200);
+		var data = localStorage.getItem("state" + stateNum);
+		if (data === null) {
+			alert(stateNum + " is not a saved state");
+		}
+		this.deserialize(data);
 	}
 }
 
@@ -319,13 +466,18 @@ canvas.addEventListener("click", function(event) {
 
 	var number = prompt("ge ett nummer");
 
+	if (number === "") {
+		return;
+	}
+	
 	if (number !== null) {
 		number = number-0;
 	}
+	else {
+		return;
+	}
 
 	board.setCellNumber(x, y, number);
-
-	board.render();
 });
 
 
