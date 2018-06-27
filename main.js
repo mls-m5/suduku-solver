@@ -617,4 +617,4 @@ function keyDown(e) {
 window.addEventListener("keypress", keyPress, true);
 window.addEventListener("keydown", keyDown, true);
 
-board.load();
+//board.load();
