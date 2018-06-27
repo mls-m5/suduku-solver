@@ -24,7 +24,27 @@ function Cell(board, x, y) {
 	this.number = null;
 
 	this.setNumber = function(number) {
-		this.number = number;
+		if (this.number == null) {
+			if (number != null && this.possibleNumbers.indexOf(number) === -1) {
+				return false;
+			}
+			this.number = number;
+			return true;
+		}
+		else {
+			let oldNumber = this.number;
+			this.number = null;
+			this.board.recalculate();
+			let ret = this.setNumber(number);
+			if (ret) {
+				return true;
+			}
+			else {
+				this.number = oldNumber;
+				board.recalculate();
+				return false;
+			}
+		}
 	}
 
 	this.resetPossibleNumbers = function() {
@@ -82,6 +102,15 @@ function Cell(board, x, y) {
 		let dx = this.x * cellSize;
 		let dy = this.y * cellSize;
 		//drawText(this.x * cellSize, this.y * cellSize, "hej");
+
+
+		if (this.x === this.board.cursorX && this.y === this.board.cursorY) {
+			ctx.fillStyle = "blue";
+
+			ctx.fillRect(this.x * cellSize, this.y * cellSize, cellSize, cellSize);
+
+			ctx.fillStyle = "black";
+		}
 
 		for (let i = 1; i <= 9; ++i) {
 			let nx = ((i - 1) % 3 + .5) * cellSize / 4 ;
@@ -382,8 +411,9 @@ function Board() {
 
 	this.setCellNumber = function (x, y, number) {
 		var cell = this.getCell(x, y);
-		cell.setNumber(number);
+		var ret = cell.setNumber(number);
 		this.recalculate();
+		return ret;
 	}
 
 	this.serialize = function() {
@@ -420,6 +450,19 @@ function Board() {
 			alert(stateNum + " is not a saved state");
 		}
 		this.deserialize(data);
+	}
+
+	this.cursorX = 0;
+	this.cursorY = 0;
+
+	this.moveCursor = function(x, y) {
+		this.cursorX += x;
+		this.cursorY += y;
+
+		this.cursorX = Math.max(0, this.cursorX);
+		this.cursorY = Math.max(0, this.cursorY);
+		this.cursorX = Math.min(8, this.cursorX);
+		this.cursorY = Math.min(8, this.cursorY);
 	}
 }
 
@@ -466,20 +509,24 @@ canvas.addEventListener("click", function(event) {
 	var x = Math.floor(coords.x / cellSize);
 	var y = Math.floor(coords.y / cellSize);
 
-	var number = prompt("ge ett nummer");
+	board.cursorX = x;
+	board.cursorY = y;
+	board.render();
 
-	if (number === "") {
-		return;
-	}
+	// var number = prompt("ge ett nummer");
 
-	if (number !== null) {
-		number = number-0;
-	}
-	else {
-		return;
-	}
+	// if (number === "") {
+	// 	return;
+	// }
 
-	board.setCellNumber(x, y, number);
+	// if (number !== null) {
+	// 	number = number-0;
+	// }
+	// else {
+	// 	return;
+	// }
+
+	// board.setCellNumber(x, y, number);
 });
 
 
@@ -519,8 +566,55 @@ function keyPress(e){
     else if (char == "a") {
     	board.autoFill();
     }
+    else if (char >= "0" && char <= "9") {
+    	if (!board.setCellNumber(board.cursorX, board.cursorY, char - 0)) {
+    		alert("kan inte mata in det numret här");
+    		return;
+    	}
+    	if (board.cursorX > 7) {
+    		board.cursorX = 0;
+    		board.cursorY = (board.cursorY + 1) % 8;
+    	}
+    	else {
+    		board.moveCursor(1, 0);
+    	}
+    	board.render();
+    }
+}
+
+function keyDown(e) {
+    if(window.event) { // IE                    
+    	keynum = e.keyCode;
+    } else if(e.which){ // Netscape/Firefox/Opera                   
+    	keynum = e.which;
+    }
+
+
+	switch (keynum) {
+		case 38: //up
+			board.moveCursor(0, -1);
+			board.render();
+			break;
+		case 40: //down
+			board.moveCursor(0, 1);
+			board.render();
+			break;
+		case 37:
+			board.moveCursor(-1, 0);
+			board.render();
+			break;
+		case 39:
+			board.moveCursor(1, 0);
+			board.render();
+			break;
+		case 8: //Backspace
+		case 46: //Delete
+			board.setCellNumber(board.cursorX, board.cursorY, null);
+			break;
+	}
 }
 
 window.addEventListener("keypress", keyPress, true);
+window.addEventListener("keydown", keyDown, true);
 
 board.load();
