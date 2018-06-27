@@ -150,7 +150,7 @@ function Board() {
 
 	function autoFillLoop() {
 		function repeat() {
-			setTimeout(autoFillLoop, 10);
+			setTimeout(autoFillLoop, 1);
 		}
 
 		if (board.solved === true) {
@@ -221,6 +221,8 @@ function Board() {
 
 	this.autoFill = function() {
 		info.innerText = "löser";
+
+		solver.reset();
 
 		setTimeout(autoFillLoop, 200);
 	}
@@ -469,7 +471,7 @@ canvas.addEventListener("click", function(event) {
 	if (number === "") {
 		return;
 	}
-	
+
 	if (number !== null) {
 		number = number-0;
 	}
